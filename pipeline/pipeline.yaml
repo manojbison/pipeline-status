@@ -1,0 +1,59 @@
+---
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: pipeline-status
+  labels:
+    app.kubernetes.io/version: "0.1"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.12.1"
+    tekton.dev/categories: Notification
+    tekton.dev/tags: Notification
+    tekton.dev/platforms: "linux/amd64,linux/s390x,linux/ppc64le"
+spec:
+  params:
+    - name: repo_url
+      value: "{{ repo_url }}"
+  pipelineSpec:
+    params:
+      - name: repo_url
+    workspaces:
+      - name: source
+    tasks:
+      - name: fetch-repository
+        taskRef:
+          name: git-clone
+          kind: ClusterTask
+        workspaces:
+          - name: output
+            workspace: source
+        params:
+          - name: url
+            value: $(params.repo_url)
+    finally:
+      - name: notify-any-failure
+        when:
+          - input: $(tasks.status)
+            operator: in
+            values: ["Failed"]
+        taskRef:
+          name: send-to-slack-channel
+        params:
+          - name: webhook-secret
+            value: slack
+          - name: message
+            value: "Hello from Tekton!"
+          - name: icon-emoji
+            value: ':Failed:'
+      # - name: notify-any-failure
+      #   when:
+      #     - input: $(tasks.status)
+      #       operator: in
+      #       values: ["Failed"]
+      #   taskRef:
+      #     name: send-mail
+      #   params:
+      #     - name: webhook-secret
+      #       value: webhook-secret
+      #     - name: message
+      #       value: "Hello from Tekton!"
