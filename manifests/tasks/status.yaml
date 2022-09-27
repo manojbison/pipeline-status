@@ -1,0 +1,52 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: ci-pipeline-status
+  labels:
+    app.kubernetes.io/version: "0.1"
+  annotations:
+    tekton.dev/pipelines.minVersion: 0.22.0
+    tekton.dev/tags: Notification
+    tekton.dev/displayName: "ci-pipeline-status"
+    tekton.dev/platforms: "linux/amd64,linux/s390x,linux/ppc64le,linux/arm64"
+spec:
+  description: >-
+    This task is used to get pipeline status
+  
+  params:
+    - name: url
+      type: string
+      description: cluster url
+    - name: namespace
+      type: string
+      description: cluster namepsace
+    - name: secret
+      type: string
+      description: cluster secret
+    - name: status
+      type: string
+      description: pipelines status
+      default: "Failed"
+  results:
+    - description: The data stored in string format
+      name: DATA
+  steps:
+  - name: post
+    image: docker.io/curlimages/curl:7.70.0@sha256:031df77a11e5edded840bc761a845eab6e3c2edee22669fb8ad6d59484b6a1c4 #tag: 7.70.0
+    script: |
+      #!/bin/sh
+      kubectl login "${params.url}"" -u $USER  -p $PASSWORD
+      kubectl project "${params.namespace}"
+      results=tkn pipeline list | grep "Failed" | head -10 
+      echo $results | tee $(results.DATA.path)
+    env:
+    - name: USER
+      valueFrom:
+        secretKeyRef:
+          name: $(params.secret)
+          key: user
+    - name: PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: $(params.secret)
+          key: password
