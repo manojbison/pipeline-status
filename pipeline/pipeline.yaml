@@ -2,58 +2,44 @@
 apiVersion: tekton.dev/v1beta1
 kind: Pipeline
 metadata:
-  name: pipeline-status
   labels:
-    app.kubernetes.io/version: "0.1"
-  annotations:
-    tekton.dev/pipelines.minVersion: "0.12.1"
-    tekton.dev/categories: Notification
-    tekton.dev/tags: Notification
-    tekton.dev/platforms: "linux/amd64,linux/s390x,linux/ppc64le"
+    app: tekton-catalog
+  name: tekton-catalog-pipeline
 spec:
-  params:
-    - name: repo_url
-      value: "{{ repo_url }}"
-  pipelineSpec:
+  description: A sample pipeline that interacts with GitHub <br /><br /> **WorkFlow** <br /> ![workflow](https://storage.googleapis.com/abaker9-temp/pipeline-workflow1.png) <br /><br /> **Pipeline** <br /> ![pipeline](https://storage.googleapis.com/abaker9-temp/hello-github.png)
+  finally:
+  - name: notify-any-failure
+    when:
+      - input: $(tasks.status)
+        operator: in
+        values: ["Failed"]
     params:
-      - name: repo_url
+      - name: webhook-secret
+        value: slack
+      - name: message
+        value: "git clone is failed"
+      - name: icon-emoji
+        value: ':Failed:'
+    taskRef:
+      kind: Task
+      name: send-to-slack-channel
+  params:
+  - description: url to clone with https
+    name: repo_url
+    default: "https://github.com/manojbison/pipeline-status.git"
+  tasks:
+  - name: clone
+    params:
+    - name: url
+      value: $(params.repo_url)
+    taskRef:
+      kind: ClusterTask
+      name: git-clone
     workspaces:
-      - name: source
-    tasks:
-      - name: fetch-repository
-        taskRef:
-          name: git-clone
-          kind: ClusterTask
-        workspaces:
-          - name: output
-            workspace: source
-        params:
-          - name: url
-            value: $(params.repo_url)
-    finally:
-      - name: notify-any-failure
-        when:
-          - input: $(tasks.status)
-            operator: in
-            values: ["Failed"]
-        taskRef:
-          name: send-to-slack-channel
-        params:
-          - name: webhook-secret
-            value: slack
-          - name: message
-            value: "Hello from Tekton!"
-          - name: icon-emoji
-            value: ':Failed:'
-      # - name: notify-any-failure
-      #   when:
-      #     - input: $(tasks.status)
-      #       operator: in
-      #       values: ["Failed"]
-      #   taskRef:
-      #     name: send-mail
-      #   params:
-      #     - name: webhook-secret
-      #       value: webhook-secret
-      #     - name: message
-      #       value: "Hello from Tekton!"
+    - name: output
+      workspace: source
+  workspaces:
+  - description: |
+      This workspace will receive the cloned git repo and be passed
+      to the next Task for verifying, building, and pushing files
+    name: source
